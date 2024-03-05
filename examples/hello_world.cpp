@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022 NVIDIA Corporation
+* Copyright (c) 2021-2022 NVIDIA Corporation
  *
  * Licensed under the Apache License Version 2.0 with LLVM Exceptions
  * (the "License"); you may not use this file except in compliance with
@@ -13,44 +13,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <iostream>
 
 // Pull in the reference implementation of P2300:
 #include <stdexec/execution.hpp>
 
-#include "exec/static_thread_pool.hpp"
-
 using namespace stdexec;
-using stdexec::sync_wait;
 
-int main() {
-  exec::static_thread_pool ctx{8};
-  scheduler auto sch = ctx.get_scheduler();                              // 1
-                                                                         //
-  sender auto begin = schedule(sch);                                     // 2
-  sender auto hi_again = then(                                           // 3
-    begin,                                                               // 3
-    [] {                                                                 // 3
-      std::cout << "Hello world! Have an int.\n";                        // 3
-      return 13;                                                         // 3
-    });                                                                  // 3
-                                                                         //
-  sender auto add_42 = then(hi_again, [](int arg) { return arg + 42; }); // 4
-                                                                         //
-  auto [i] = sync_wait(std::move(add_42)).value();                       // 5
-  std::cout << "Result: " << i << std::endl;
+int f() {
+	return 239;
+}
 
-  // Sync_wait provides a run_loop scheduler
-  std::tuple<run_loop::__scheduler> t = sync_wait(get_scheduler()).value();
-  (void) t;
+struct fun {
+	struct impl_t {
+		template<class _Cvref, class _Fun>
+		auto operator() (_Cvref, _Fun && __fun)
+		{
+			return __fun(just, __tuple<std::index_sequence<>*>{});
+		}
+	};
+	auto operator()(auto sched) const {
+		impl_t impl;
+		__sexpr<impl_t> just_{impl};
+		auto sndr = then(just_, f);
+		return on(sched, sndr);
+	}
+};
 
-  auto y = let_value(get_scheduler(), [](auto sched) {
-    return on(sched, then(just(), [] {
-                std::cout << "from run_loop\n";
-                return 42;
-              }));
-  });
-  sync_wait(std::move(y));
+using Sender = __sexpr<__detail::_Lambda<
+	on_t,
+	run_loop::__scheduler,
+	__sexpr<__detail::_Lambda<then_t, int(*)(), __sexpr<fun::impl_t>>>
+>>;
 
-  sync_wait(when_all(just(42), get_scheduler(), get_stop_token()));
+void test(Sender s) {
+	using completion_signatures_t = decltype(get_completion_signatures(s, __sync_wait::__env{}));
+
+	using _Fun = __detail::__always<__sexpr<__detail::_Lambda<then_t, int(*)(), __sexpr<fun::impl_t>>>>;
+	using _Domain = __let::__result_domain_t<set_value_t, run_loop::__scheduler::__schedule_task, _Fun, __sync_wait::__env, run_loop::__scheduler>;
+	static_assert(__ok<_Domain>);
 }

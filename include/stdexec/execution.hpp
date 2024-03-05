@@ -3581,29 +3581,34 @@ namespace stdexec {
       };
     }
 
-    template <class _LetTag, class _Env>
-    auto __mk_transform_sender_fn(const _Env&) noexcept {
-      using _Set = __t<_LetTag>;
-      return []<class _Fun, class _Child>(__ignore, _Fun&& __fun, _Child&& __child) {
-        using __completions_t = __completion_signatures_of_t<_Child, _Env>;
-        if constexpr (__merror<__completions_t>) {
-          return __completions_t();
-        } else {
-          using _Sched = __completion_sched<_Child, _Set>;
-          using _Domain = __result_domain_t<_Set, _Child, _Fun, _Env, _Sched>;
-          if constexpr (__merror<_Domain>) {
-            return _Domain();
-          } else if constexpr (same_as<_Domain, dependent_domain>) {
-            using _Domain2 = __late_domain_of_t<_Child, _Env>;
-            return __make_sexpr<__let_t<_Set, _Domain2>>((_Fun&&) __fun, (_Child&&) __child);
-          } else {
-            static_assert(!same_as<_Domain, __none_such>);
-            return __make_sexpr<__let_t<_Set, _Domain>>((_Fun&&) __fun, (_Child&&) __child);
-          }
+      template <class _LetTag, class _Env>
+    struct TransformSenderFn {
+        using _Set = __t<_LetTag>;
+
+        template<class _Fun, class _Child>
+        auto operator()(__ignore, _Fun&& __fun, _Child&& __child) {
+            using __completions_t = __completion_signatures_of_t<_Child, _Env>;
+            if constexpr (__merror<__completions_t>) {
+                return __completions_t();
+            } else {
+                using _Sched = __completion_sched<_Child, _Set>;
+                using _Domain = __result_domain_t<_Set, _Child, _Fun, _Env, _Sched>;
+                if constexpr (__merror<_Domain>) {
+                    return _Domain();
+                } else if constexpr (same_as<_Domain, dependent_domain>) {
+                    using _Domain2 = __late_domain_of_t<_Child, _Env>;
+                    return __make_sexpr<__let_t<_Set, _Domain2>>((_Fun&&) __fun, (_Child&&) __child);
+                } else {
+                    static_assert(!same_as<_Domain, __none_such>);
+                    return __make_sexpr<__let_t<_Set, _Domain>>((_Fun&&) __fun, (_Child&&) __child);
+                }
+            }
+            STDEXEC_UNREACHABLE();
         }
-        STDEXEC_UNREACHABLE();
-      };
-    }
+    };
+
+    template <class _LetTag, class _Env>
+    TransformSenderFn<_LetTag, _Env> __mk_transform_sender_fn(const _Env&) noexcept;
 
     template <class _Receiver, class _Fun, class _Set, class _Sched, class... _Tuples>
     struct __let_state {
@@ -3918,7 +3923,7 @@ namespace stdexec {
         using __id = __scheduler;
         bool operator==(const __scheduler&) const noexcept = default;
 
-       private:
+       public:
         struct __schedule_task {
           using __t = __schedule_task;
           using __id = __schedule_task;

@@ -586,20 +586,16 @@ namespace stdexec {
 #else
     // Anonymous namespace here is to avoid symbol name collisions with the
     // lambda functions returned by __make_tuple.
-    namespace {
-      constexpr auto __make_tuple = //
-        []<class _Tag, class... _Captures>(_Tag, _Captures&&... __captures) {
-          return [... __captures = (_Captures&&) __captures]<class _Cvref, class _Fun>(
-                   _Cvref, _Fun && __fun) mutable                                          //
-                 noexcept(__nothrow_callable<_Fun, _Tag, __minvoke<_Cvref, _Captures>...>) //
-                 -> __call_result_t<_Fun, _Tag, __minvoke<_Cvref, _Captures>...>
-                   requires __callable<_Fun, _Tag, __minvoke<_Cvref, _Captures>...>
-          {
-            return ((_Fun&&) __fun)(
-              _Tag(), const_cast<__minvoke<_Cvref, _Captures>&&>(__captures)...);
-          };
+        template<class _Tag, class... _Captures>
+        struct _Lambda {
+            template<class _Cvref, class _Fun>
+            auto operator()(_Cvref, _Fun&& __fun)
+              -> __call_result_t<_Fun, _Tag, __minvoke<_Cvref, _Captures>...>;
         };
-    } // anonymous namespace
+
+        constexpr auto __make_tuple = []<class _Tag, class... _Captures>(_Tag, _Captures&&... __captures) {
+            return _Lambda<_Tag, _Captures...>{};
+        };
 
     template <class _Tag>
     template <class _Data, class... _Child>
